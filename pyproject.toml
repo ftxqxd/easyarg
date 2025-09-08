@@ -1,0 +1,18 @@
+[project]
+name = "easyarg"
+version = "0.0.0"
+authors = [
+  { name="Rewi Haar" },
+]
+description = "A minimal-boilerplate argument parser"
+readme = "README.md"
+requires-python = ">=3.9"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
+license = "MIT"
+license-files = ["LICEN[CS]E*"]
+
+[tool.mypy]
+disallow_untyped_defs = true
