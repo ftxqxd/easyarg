@@ -2,11 +2,11 @@
 from easyarg import Command
 
 @Command
-def main(filename: str, *, out: list[str], uppercase: bool = False) -> None:
+def main(file: str, *, out: list[str], uppercase: bool = False) -> None:
     """
-    Write the input file to the output file, optionally uppercasing it.
+    Write the contents of FILE to the file(s) OUT, optionally uppercasing them.
     """
-    with open(filename) as input_file:
+    with open(file) as input_file:
         input_text = input_file.read()
         if uppercase:
             input_text = input_text.upper()
