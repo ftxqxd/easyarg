@@ -83,4 +83,8 @@ class Command[T]:
                 args.append(value)
             else:
                 kwargs[name] = value
-        return self.function(*args, **kwargs)
+
+        result = self.function(*args, **kwargs)
+        if args is None and result is not None:
+            print(result)
+        return result
