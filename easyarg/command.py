@@ -5,17 +5,10 @@ from collections.abc import Callable
 from enum import Enum
 from inspect import Parameter
 
-from .action_registry import ActionRegistry, global_registry
 from .action import Action
-
-class Option[T]:
-    def __init__(self, name: str | int, action: Action[T], short_names: list[str] = [], long_names: list[str] = [], *, positional: bool = False, flag: bool = False):
-        self.name = name
-        self.action = action
-        self.short_names = short_names
-        self.long_names = long_names
-        self.positional = positional
-        self.flag = flag
+from .action_registry import ActionRegistry, global_registry
+from .exceptions import *
+from .option import Option
 
 class Command[T]:
     def __init__(self, function: Callable[..., T], *, action_registry: ActionRegistry = global_registry) -> None:
@@ -23,20 +16,22 @@ class Command[T]:
         self.positional_options: list[Option] = []
         self.short_options: dict[str | int, Option] = {}
         self.long_options: dict[str | int, Option] = {}
+        self.all_options: set[Option] = set()
 
         signature = inspect.signature(function, eval_str=True)
         for index, (_, parameter) in enumerate(signature.parameters.items()):
             if parameter.kind in (Parameter.VAR_POSITIONAL, Parameter.VAR_KEYWORD):
                 raise ValueError('* and ** parameters are not allowed')
             positional = parameter.kind in (Parameter.POSITIONAL_ONLY, Parameter.POSITIONAL_OR_KEYWORD)
+            required = parameter.default is Parameter.empty
 
             short_names = []
             long_names = []
-            parameter_name: int | str
+            option_name: int | str
             if positional:
-                parameter_name = index
+                option_name = index
             else:
-                parameter_name = parameter.name
+                option_name = parameter.name
                 first_letter = parameter.name[0]
                 if first_letter.lower() not in self.short_options:
                     short_names.append(first_letter.lower())
@@ -46,13 +41,15 @@ class Command[T]:
 
             read = action_registry.get_action(parameter.annotation)
 
-            option = Option(parameter_name, read, short_names, long_names, positional=positional, flag=parameter.annotation == bool)
+            option = Option(option_name, parameter.name, read, short_names, long_names, required=required, positional=positional)
             self.add_option(option)
 
     def __call__(self, *args: list, **kwargs: dict) -> T:
         return self.function(*args, **kwargs)
 
     def add_option(self, option: Option) -> None:
+        self.all_options.add(option)
+
         if option.positional:
             self.positional_options.append(option)
 
@@ -67,10 +64,18 @@ class Command[T]:
 
         parser = ArgumentParser(arguments, self)
         parser.parse()
+        parser.validate()
         return parser.option_values
 
-    def run(self) -> T:
-        all_args = self.parse(sys.argv[1:])
+    def run(self, args: list[str] | None = None) -> T:
+        try:
+            all_args = self.parse(args or sys.argv[1:])
+        except EasyargException as exception:
+            if args is not None:
+                raise
+            print(sys.argv[0] + ':', exception, file=sys.stderr)
+            sys.exit(1)
+
         args = []
         kwargs = {}
         for name, value in all_args.items():

@@ -2,55 +2,55 @@ from collections.abc import Callable
 from .exceptions import UnexpectedValueException, MissingValueException
 
 class Action[T]:
-    def read_arg(self, value: str | None) -> T:
-        # TODO: Rethink this API as it relies on mutating the actions, which is kinda bad if you want to parse more than one arg list on the same Command
+    def read_argument(self, flag: str, input: str | None) -> T:
         raise NotImplementedError
 
-class AtMostOnceAction[T](Action[T]):
+class VariadicAction[T](Action[T]):
+    def update_argument(self, flag: str, previous_value: T, input: str | None) -> T:
+        raise NotImplementedError
+
+class ConstantAction[T](Action[T]):
+    def __init__(self, value: T) -> None:
+        self._value = value
+
+    def read_argument(self, flag: str, input: str | None) -> T:
+        if input is not None:
+            raise UnexpectedValueException(flag, input)
+        return self._value
+
+class BoolAction(ConstantAction[bool]):
     def __init__(self) -> None:
-        self._seen = False
+        super().__init__(True)
 
-    def _read(self, value: str | None) -> T:
+class SingleValueAction[T](Action[T]):
+    def _read_input(self, input: str) -> T:
         raise NotImplementedError
 
-    def read_arg(self, value: str | None) -> T:
-        if self._seen:
-            raise UnexpectedValueException()
-        self._seen = True
-        return self._read(value)
-
-class BoolAction(AtMostOnceAction[bool]):
-    def _read(self, value: str | None) -> bool:
-        if value is not None:
-            raise UnexpectedValueException()
-        return True
-
-class SingleValueAction[T](AtMostOnceAction[T]):
-    def _read_str(self, value: str) -> str:
-        raise NotImplementedError
-
-    def _read(self, value: str | None) -> T:
-        if value is None:
-            raise MissingValueException()
-        return self._read_str(value)
+    def read_argument(self, flag: str, input: str | None) -> T:
+        if input is None:
+            raise MissingValueException(flag)
+        return self._read_input(input)
 
 class StrAction(SingleValueAction[str]):
-    def _read_str(self, value: str) -> str:
-        return value
+    def _read_input(self, input: str) -> str:
+        return input
 
 class IntAction(SingleValueAction[int]):
-    def _read_str(self, value: str) -> int:
-        return int(value)
+    def _read_input(self, input: str) -> int:
+        return int(input)
 
 class FloatAction(SingleValueAction[float]):
-    def _read_str(self, value: str) -> float:
-        return float(value)
+    def _read_input(self, input: str) -> float:
+        return float(input)
 
-class ListAction[T](Action[list[T]]):
+class ListAction[T](VariadicAction[list[T]]):
     def __init__(self, action: Action[T]) -> None:
         self._action = action
-        self._args = []
 
-    def read_arg(self, value: str | None) -> list[T]:
-        self._args.append(self._action.read_arg(value))
-        return self._args
+    def read_argument(self, flag: str, input: str | None) -> list[T]:
+        return [self._action.read_argument(flag, input)]
+
+    def update_argument(self, flag: str, previous_value: list[T], input: str | None) -> list[T]:
+        if input is None:
+            raise MissingValueException(flag)
+        return previous_value + [self._action.read_argument(flag, input)]

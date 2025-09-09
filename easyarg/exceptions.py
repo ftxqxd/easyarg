@@ -1,17 +1,31 @@
+from __future__ import annotations
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from .option import Option
+
 class EasyargException(Exception):
     pass
 
 class UnknownOptionException(EasyargException):
-    def __init__(self, name: str) -> None:
-        super().__init__(f"unknown option: {name}")
+    def __init__(self, flag: str) -> None:
+        super().__init__(f"unknown option {flag}")
+
+class TrailingArgumentException(EasyargException):
+    def __init__(self, value: str) -> None:
+        super().__init__(f"trailing argument: {value}")
+
+class MissingOptionException(EasyargException):
+    def __init__(self, option: Option) -> None:
+        super().__init__(f"{option.user_readable_name()} must be provided")
 
 class MissingValueException(EasyargException):
-    def __init__(self, name: str) -> None:
-        super().__init__(f"value required for parameter {name}")
+    def __init__(self, flag: str) -> None:
+        super().__init__(f"a value is required for option {flag}")
 
 class UnexpectedValueException(EasyargException):
-    def __init__(self, name: str | None, value: str) -> None:
-        if name is not None:
-            super().__init__(f"unexpected value for flag {name}: {value}")
-        else:
-            super().__init__(f"unexpected positional argument: {value}")
+    def __init__(self, flag: str, input: str) -> None:
+        super().__init__(f"value provided for flag {flag}")
+
+class RepeatedOptionException(EasyargException):
+    def __init__(self, flag: str) -> None:
+        super().__init__(f"option {flag} provided more than once")
