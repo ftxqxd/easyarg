@@ -41,3 +41,15 @@ $ python3 main.py -- input_file -u --out=output_file
 - **Flexible but opinionated**: `easyarg` should handle most common use cases
   for argument parsing, but it's a non-goal to support every conceivable
   argument syntax.
+
+## Planned and implemented features
+
+- [x] Positional options
+- [x] Long and short flag options
+- [x] Variadic (list) options
+- [x] Function annotation
+- [x] Basic built-in type arguments (`int`, `float`, `str`, `bool`, `list`)
+- [ ] Subcommands
+- [ ] Docstring parsing & help generation
+- [ ] Metaclass
+- [ ] Extensibility
