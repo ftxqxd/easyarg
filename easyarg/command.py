@@ -2,10 +2,8 @@ import inspect
 import sys
 
 from collections.abc import Callable
-from enum import Enum
 from inspect import Parameter
 
-from .action import Action
 from .action_registry import ActionRegistry, global_registry
 from .exceptions import *
 from .option import Option
@@ -65,7 +63,7 @@ class Command[T]:
         parser = ArgumentParser(arguments, self)
         parser.parse()
         parser.validate()
-        return parser.option_values
+        return parser.option_values()
 
     def run(self, args: list[str] | None = None) -> T:
         try:

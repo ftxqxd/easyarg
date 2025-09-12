@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
 
 from .action import VariadicAction, ConstantAction
 from .command import Command
@@ -15,7 +14,7 @@ class Token:
 @dataclass
 class ShortArgumentToken(Token):
     def __str__(self) -> str:
-        return f'-' + self.value
+        return '-' + self.value
 
 @dataclass
 class LongArgumentToken(Token):
@@ -47,99 +46,102 @@ class BareArgumentToken(Token):
 
 class ArgumentParser:
     def __init__(self, arguments: list[str], command: Command) -> None:
-        self.tokens: list[Token] = []
+        self._tokens: list[Token] = []
         for argument in arguments:
             if argument == '--':
-                self.tokens.append(SeparatorToken())
+                self._tokens.append(SeparatorToken())
             elif argument[:2] == '--':
-                self.tokens.append(LongArgumentToken(argument[2:]))
+                self._tokens.append(LongArgumentToken(argument[2:]))
             elif argument[0] == '-' and len(argument) > 1:
-                self.tokens.append(ShortArgumentToken(argument[1:]))
+                self._tokens.append(ShortArgumentToken(argument[1:]))
             else:
-                self.tokens.append(BareArgumentToken(argument))
+                self._tokens.append(BareArgumentToken(argument))
 
-        self.command = command
-        self.option_values: dict[int | str, object] = {}
-        self.positional_option_index = 0
-        self.raw_mode = False
+        self._command = command
+        self._option_values: dict[int | str, object] = {}
+        self._positional_option_index = 0
+        self._raw_mode = False
 
-    def peek_token(self) -> Token | None:
-        if len(self.tokens) == 0:
+    def option_values(self) -> dict[int | str, object]:
+        return self._option_values.copy()
+
+    def _peek_token(self) -> Token | None:
+        if len(self._tokens) == 0:
             return None
-        return self.tokens[0]
+        return self._tokens[0]
 
-    def next_token(self) -> Token:
-        if len(self.tokens) == 0:
+    def _next_token(self) -> Token:
+        if len(self._tokens) == 0:
             raise MissingValueException('')
-        token, *self.tokens = self.tokens
+        token, *self._tokens = self._tokens
         return token
 
-    def next_bare_argument(self) -> str | None:
-        value_token = self.peek_token()
+    def _next_bare_argument(self) -> str | None:
+        value_token = self._peek_token()
         value = None
         if isinstance(value_token, BareArgumentToken):
             value = value_token.value
-            self.next_token()
+            self._next_token()
         return value
 
-    def set_option_value(self, option: Option, flag: str, input: str | None) -> None:
-        if option.name in self.option_values:
+    def _set_option_value(self, option: Option, flag: str, input: str | None) -> None:
+        if option.name in self._option_values:
             if not isinstance(option.action, VariadicAction):
                 raise RepeatedOptionException(flag)
-            previous_value = self.option_values[option.name]
-            self.option_values[option.name] = option.action.update_argument(flag, previous_value, input)
+            previous_value = self._option_values[option.name]
+            self._option_values[option.name] = option.action.update_argument(flag, previous_value, input)
         else:
-            self.option_values[option.name] = option.action.read_argument(flag, input)
+            self._option_values[option.name] = option.action.read_argument(flag, input)
 
-    def current_positional_option(self) -> Option:
-        return self.command.positional_options[self.positional_option_index]
+    def _current_positional_option(self) -> Option:
+        return self._command.positional_options[self._positional_option_index]
 
     def parse(self) -> None:
-        while len(self.tokens) > 0:
-            token = self.next_token()
+        while len(self._tokens) > 0:
+            token = self._next_token()
 
-            if self.raw_mode or isinstance(token, BareArgumentToken):
+            if self._raw_mode or isinstance(token, BareArgumentToken):
                 argument_value = str(token)
-                flag = f'positional argument #{self.positional_option_index + 1}'
-                if self.positional_option_index >= len(self.command.positional_options):
+                flag = f'positional argument #{self._positional_option_index + 1}'
+                if self._positional_option_index >= len(self._command.positional_options):
                     raise TrailingArgumentException(argument_value)
 
-                option = self.current_positional_option()
+                option = self._current_positional_option()
                 if not isinstance(option.action, VariadicAction):
-                    self.positional_option_index += 1
+                    self._positional_option_index += 1
 
-                self.set_option_value(option, flag, argument_value)
+                self._set_option_value(option, flag, argument_value)
                 continue
 
             match token:
                 case LongArgumentToken(name, value):
-                    if name not in self.command.long_options:
+                    if name not in self._command.long_options:
                         raise UnknownOptionException(str(token))
-                    option = self.command.long_options[name]
+                    option = self._command.long_options[name]
                     if not isinstance(option.action, ConstantAction) and value is None:
-                        value = self.next_bare_argument()
-                    self.set_option_value(option, str(token), value)
+                        value = self._next_bare_argument()
+                    self._set_option_value(option, str(token), value)
 
                 case ShortArgumentToken(options):
                     name = options[0]
                     value = options[1:]
-                    option = self.command.short_options[name]
+                    option = self._command.short_options[name]
                     if isinstance(option.action, ConstantAction):
                         # If it's a flag argument, allow chaining several in a single argument
                         if value != '':
-                            self.tokens.insert(0, ShortArgumentToken(value))
+                            self._tokens.insert(0, ShortArgumentToken(value))
                         value = None
                     elif value == '':
-                        value = self.next_bare_argument()
-                    self.set_option_value(option, str(token), value)
+                        value = self._next_bare_argument()
+                    self._set_option_value(option, str(token), value)
 
                 case SeparatorToken():
-                    self.raw_mode = True
+                    self._raw_mode = True
 
     def validate(self) -> None:
         missing_options: list[Option] = []
-        for option in self.command.all_options:
-            if option.required and option.name not in self.option_values:
+        for option in self._command.all_options:
+            if option.required and option.name not in self._option_values:
                 missing_options.append(option)
 
         # Complain about missing positional options before missing flags
